@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect } from 'react'
-import { Send, Upload, FileText, X, Bot, User, Trash2, Plus } from 'lucide-react'
+import { Send, Upload, FileText, X, Bot, User, Trash2, Plus, Settings, Loader } from 'lucide-react'
 import './App.css'
+
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
 
 function App() {
   const [messages, setMessages] = useState([
@@ -14,6 +16,9 @@ function App() {
   const [inputValue, setInputValue] = useState('')
   const [uploadedFiles, setUploadedFiles] = useState([])
   const [isTyping, setIsTyping] = useState(false)
+  const [aiProvider, setAiProvider] = useState('openai')
+  const [showSettings, setShowSettings] = useState(false)
+  const [uploading, setUploading] = useState(false)
   const messagesEndRef = useRef(null)
   const fileInputRef = useRef(null)
 
@@ -25,7 +30,7 @@ function App() {
     scrollToBottom()
   }, [messages])
 
-  const handleSendMessage = () => {
+  const handleSendMessage = async () => {
     if (!inputValue.trim()) return
 
     const newUserMessage = {
@@ -39,17 +44,44 @@ function App() {
     setInputValue('')
     setIsTyping(true)
 
-    // Simulate bot response (placeholder for future AI integration)
-    setTimeout(() => {
+    try {
+      const response = await fetch(`${API_URL}/chat`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          message: inputValue,
+          aiProvider,
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to get response')
+      }
+
+      const data = await response.json()
+      
       const botResponse = {
         id: Date.now() + 1,
         type: 'bot',
-        content: "This is a demo response. Once you integrate an AI backend, I'll be able to answer questions based on your uploaded documents!",
-        timestamp: new Date()
+        content: data.response,
+        timestamp: new Date(),
+        sources: data.sources,
       }
       setMessages(prev => [...prev, botResponse])
+    } catch (error) {
+      console.error('Error:', error)
+      const errorMessage = {
+        id: Date.now() + 1,
+        type: 'bot',
+        content: "Sorry, I encountered an error. Please make sure the backend is running and try again.",
+        timestamp: new Date()
+      }
+      setMessages(prev => [...prev, errorMessage])
+    } finally {
       setIsTyping(false)
-    }, 1500)
+    }
   }
 
   const handleKeyPress = (e) => {
@@ -59,19 +91,62 @@ function App() {
     }
   }
 
-  const handleFileUpload = (e) => {
+  const handleFileUpload = async (e) => {
     const files = Array.from(e.target.files)
-    const newFiles = files.map(file => ({
-      id: Date.now() + Math.random(),
-      name: file.name,
-      size: formatFileSize(file.size),
-      type: getFileType(file.name)
-    }))
-    setUploadedFiles(prev => [...prev, ...newFiles])
+    
+    for (const file of files) {
+      if (!['.txt', '.md'].includes('.' + file.name.split('.').pop().toLowerCase())) {
+        alert('Only .txt and .md files are supported')
+        continue
+      }
+
+      setUploading(true)
+      
+      try {
+        const formData = new FormData()
+        formData.append('file', file)
+        
+        const response = await fetch(`${API_URL}/upload`, {
+          method: 'POST',
+          body: formData,
+        })
+        
+        if (!response.ok) {
+          throw new Error('Upload failed')
+        }
+        
+        const result = await response.json()
+        
+        const newFile = {
+          id: Date.now() + Math.random(),
+          name: result.filename,
+          size: formatFileSize(file.size),
+          type: getFileType(file.name),
+          chunks: result.chunks,
+        }
+        setUploadedFiles(prev => [...prev, newFile])
+      } catch (error) {
+        console.error('Upload error:', error)
+        alert(`Failed to upload ${file.name}`)
+      } finally {
+        setUploading(false)
+      }
+    }
   }
 
-  const removeFile = (fileId) => {
-    setUploadedFiles(prev => prev.filter(file => file.id !== fileId))
+  const removeFile = async (fileId) => {
+    const file = uploadedFiles.find(f => f.id === fileId)
+    if (!file) return
+    
+    try {
+      await fetch(`${API_URL}/documents/${encodeURIComponent(file.name)}`, {
+        method: 'DELETE',
+      })
+      setUploadedFiles(prev => prev.filter(f => f.id !== fileId))
+    } catch (error) {
+      console.error('Delete error:', error)
+      alert('Failed to delete document')
+    }
   }
 
   const clearChat = () => {
@@ -120,16 +195,23 @@ function App() {
 
         <div className="documents-section">
           <h3>Your Documents</h3>
-          <div className="upload-area" onClick={() => fileInputRef.current?.click()}>
-            <Upload size={24} />
-            <p>Click to upload</p>
-            <span>PDF, DOC, TXT, MD</span>
+          <div 
+            className={`upload-area ${uploading ? 'uploading' : ''}`} 
+            onClick={() => !uploading && fileInputRef.current?.click()}
+          >
+            {uploading ? (
+              <Loader size={24} className="spinning" />
+            ) : (
+              <Upload size={24} />
+            )}
+            <p>{uploading ? 'Uploading...' : 'Click to upload'}</p>
+            <span>TXT, MD</span>
           </div>
           <input
             ref={fileInputRef}
             type="file"
             multiple
-            accept=".pdf,.doc,.docx,.txt,.md"
+            accept=".txt,.md"
             onChange={handleFileUpload}
             style={{ display: 'none' }}
           />
@@ -142,7 +224,7 @@ function App() {
                     <FileText size={18} className="file-icon" />
                     <div className="file-details">
                       <span className="file-name">{file.name}</span>
-                      <span className="file-size">{file.size}</span>
+                      <span className="file-size">{file.size} • {file.chunks} chunks</span>
                     </div>
                   </div>
                   <button className="remove-file" onClick={() => removeFile(file.id)}>
@@ -159,7 +241,38 @@ function App() {
             <span>{messages.length - 1} messages</span>
             <span>{uploadedFiles.length} documents</span>
           </div>
+          <button className="settings-btn" onClick={() => setShowSettings(!showSettings)}>
+            <Settings size={18} />
+          </button>
         </div>
+
+        {showSettings && (
+          <div className="settings-panel">
+            <h4>AI Provider</h4>
+            <div className="provider-options">
+              <label className="provider-option">
+                <input
+                  type="radio"
+                  name="provider"
+                  value="openai"
+                  checked={aiProvider === 'openai'}
+                  onChange={(e) => setAiProvider(e.target.value)}
+                />
+                <span>OpenAI</span>
+              </label>
+              <label className="provider-option">
+                <input
+                  type="radio"
+                  name="provider"
+                  value="ollama"
+                  checked={aiProvider === 'ollama'}
+                  onChange={(e) => setAiProvider(e.target.value)}
+                />
+                <span>Ollama (Local)</span>
+              </label>
+            </div>
+          </div>
+        )}
       </aside>
 
       {/* Main Chat Area */}
@@ -189,6 +302,19 @@ function App() {
               <div className="message-content">
                 <div className="message-bubble">
                   <p>{message.content}</p>
+                  {message.sources && message.sources.length > 0 && (
+                    <div className="sources-section">
+                      <h5>Sources:</h5>
+                      <div className="sources-list">
+                        {message.sources.map((source, idx) => (
+                          <div key={idx} className="source-item">
+                            <FileText size={14} />
+                            <span>{source.metadata?.filename || 'Document'}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
                 <span className="message-time">{formatTime(message.timestamp)}</span>
               </div>

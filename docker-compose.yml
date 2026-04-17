@@ -1,0 +1,51 @@
+version: '3.8'
+
+services:
+  backend:
+    build: ./backend
+    ports:
+      - "5000:5000"
+    environment:
+      - PORT=5000
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OLLAMA_BASE_URL=http://host.docker.internal:11434
+      - CHROMA_DB_PATH=/app/data/chroma
+      - UPLOAD_DIR=/app/uploads
+    volumes:
+      - backend-data:/app/data
+      - backend-uploads:/app/uploads
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - ai-chat-network
+    depends_on:
+      - chromadb
+
+  chromadb:
+    image: chromadb/chroma:latest
+    ports:
+      - "8000:8000"
+    volumes:
+      - chroma-data:/chroma/chroma
+    networks:
+      - ai-chat-network
+
+  frontend:
+    build: ./ai-chat-frontend
+    ports:
+      - "3000:80"
+    environment:
+      - VITE_API_URL=http://localhost:5000/api
+    depends_on:
+      - backend
+    networks:
+      - ai-chat-network
+
+volumes:
+  backend-data:
+  backend-uploads:
+  chroma-data:
+
+networks:
+  ai-chat-network:
+    driver: bridge

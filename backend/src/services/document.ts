@@ -1,8 +1,12 @@
 import { getOrCreateCollection } from '../config/chroma';
 import OpenAI from 'openai';
 import { config } from '../config';
+import { IncludeEnum } from 'chromadb';
 
-const openai = new OpenAI({ apiKey: config.openaiApiKey });
+const openai = new OpenAI({ 
+  apiKey: config.openaiApiKey,
+  baseURL: config.openaiBaseUrl,
+});
 
 export class DocumentService {
   async processDocument(fileBuffer: Buffer, filename: string): Promise<{ id: string; chunks: number }> {
@@ -67,7 +71,7 @@ export class DocumentService {
     const results = await collection.query({
       queryEmbeddings: [queryEmbedding],
       nResults: limit,
-      include: ['documents', 'metadatas'],
+      include: [IncludeEnum.Documents, IncludeEnum.Metadatas],
     });
     
     if (!results.documents || !results.metadatas) {
@@ -99,7 +103,7 @@ export class DocumentService {
     const collection = await getOrCreateCollection('documents');
     
     const results = await collection.get({
-      include: ['metadatas'],
+      include: [IncludeEnum.Metadatas],
     });
     
     const filenames = new Set<string>();

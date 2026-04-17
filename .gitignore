@@ -1,11 +1,43 @@
-```ts
+```
 # Dependencies
 node_modules/
 
-# Build outputs
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+.venv-local/
+.venv*/
+.python-version
+pip-log.txt
+pip-selfcheck.json
+.pytest_cache/
+.mypy_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.coverage/
+.nox/
+.hypothesis/
+.eggs/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Build artifacts
 dist/
 build/
-coverage/
+*.so
+*.dylib
+*.dll
+*.exe
+*.out
 
 # Logs
 *.log
@@ -15,62 +47,17 @@ coverage/
 .env.local
 .env.*
 
-# IDE files
+# Editor/IDE
 .vscode/
 .idea/
 *.swp
 *.swo
-
-# Python artifacts (if any Python in project)
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
-
-# Compiled files
-*.o
-*.obj
-*.exe
-*.dll
-*.so
-*.a
-*.out
-
-# Temp files
 *.tmp
-*.temp
 
-# OS files
+# OS
 .DS_Store
 Thumbs.db
 
-# Testing
-.mypy_cache/
-.pytest_cache/
+# Coverage
 coverage/
-
-# Package managers
-.npm/
-.yarn/
-.pnpm-store/
-
-# Java/Gradle
-target/
-.gradle/
-*.class
-
-# Go
-*.exe
-*.dll
-*.so
-*.dylib
-
-# Rust
-target/
-
-# Julia
-julia-*/
-
-# Zig
-zig-out/
 ```
